@@ -34,7 +34,7 @@ export async function generateMeaning(
         { role: 'user', content: `今日やったこと: ${action}` },
       ],
       temperature: 0.8,
-      max_tokens: 500,
+      max_tokens: 2000,
     }),
   })
 
@@ -77,11 +77,32 @@ export async function generateMeaning(
   }
 
   const choices = data.choices as
-    | Array<{ message?: { content?: string } }>
+    | Array<{
+        message?: { content?: string; reasoning_content?: string }
+      }>
     | undefined
-  const content = choices?.[0]?.message?.content
+  const message = choices?.[0]?.message
+  const content = message?.content?.trim() || null
 
   if (!content) {
+    // GLM-4.7は推論モデル: reasoning_contentにCoTを出力し、max_tokensが足りないとcontentが空になる
+    // reasoning_contentからJSON抽出を試みる
+    const reasoning = message?.reasoning_content
+    if (reasoning) {
+      const jsonMatch = reasoning.match(
+        /\{\s*"title"\s*:\s*"[^"]*"\s*,\s*"body"\s*:\s*"[^"]*"\s*\}/,
+      )
+      if (jsonMatch) {
+        console.warn(
+          '[GLM API] content empty, extracted JSON from reasoning_content',
+        )
+        try {
+          return JSON.parse(jsonMatch[0])
+        } catch {
+          // fall through
+        }
+      }
+    }
     console.error(
       '[GLM API] Unexpected response structure:',
       JSON.stringify(data).slice(0, 500),
