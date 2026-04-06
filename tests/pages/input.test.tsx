@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const mockPush = vi.fn()
@@ -60,12 +60,11 @@ describe('入力ページ', () => {
     expect(button).not.toBeDisabled()
   })
 
-  it('1000文字を超えると警告が表示される', async () => {
-    const user = userEvent.setup()
+  it('1000文字を超えると警告が表示される', () => {
     render(<InputPage />)
 
     const textarea = screen.getByLabelText('今日やったこと')
-    await user.type(textarea, 'あ'.repeat(1001))
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(1001) } })
 
     expect(screen.getByText('もう少し短くしてみて')).toBeInTheDocument()
   })
