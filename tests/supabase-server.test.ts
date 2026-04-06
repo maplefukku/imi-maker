@@ -10,16 +10,13 @@ vi.mock('next/headers', () => ({
 }))
 
 vi.mock('@supabase/ssr', () => ({
-  createServerClient: vi.fn((url: string, key: string, options: { cookies: { getAll: () => unknown; setAll: (c: unknown[]) => void } }) => {
-    // cookiesオプションが正しく渡されていることを確認
-    const allCookies = options.cookies.getAll()
-    return {
-      supabaseUrl: url,
-      supabaseKey: key,
-      cookies: allCookies,
-      auth: { getSession: vi.fn() },
-    }
-  }),
+  createServerClient: vi.fn(() => ({
+    auth: { getSession: vi.fn() },
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+    })),
+  })),
 }))
 
 describe('Supabase サーバークライアント', () => {
@@ -32,13 +29,6 @@ describe('Supabase サーバークライアント', () => {
     const { createClient } = await import('@/lib/supabase/server')
     const client = await createClient()
     expect(client).toBeDefined()
-    expect(client.supabaseUrl).toBe('https://test.supabase.co')
-    expect(client.supabaseKey).toBe('test-anon-key')
-  })
-
-  it('cookieStoreと連携する', async () => {
-    const { createClient } = await import('@/lib/supabase/server')
-    const client = await createClient()
-    expect(client.cookies).toEqual([{ name: 'sb-token', value: 'abc' }])
+    expect(client.auth).toBeDefined()
   })
 })

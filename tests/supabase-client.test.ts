@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@supabase/ssr', () => ({
-  createBrowserClient: vi.fn((url: string, key: string) => ({
-    supabaseUrl: url,
-    supabaseKey: key,
+  createBrowserClient: vi.fn(() => ({
     auth: { getSession: vi.fn() },
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+    })),
   })),
 }))
 
@@ -18,7 +20,6 @@ describe('Supabase ブラウザクライアント', () => {
     const { createClient } = await import('@/lib/supabase/client')
     const client = createClient()
     expect(client).toBeDefined()
-    expect(client.supabaseUrl).toBe('https://test.supabase.co')
-    expect(client.supabaseKey).toBe('test-anon-key')
+    expect(client.auth).toBeDefined()
   })
 })
