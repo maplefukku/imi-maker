@@ -24,20 +24,20 @@ describe('ミドルウェア', () => {
 
   it('公開パスはそのまま通過する', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } })
-    const { middleware } = await import('@/middleware')
+    const { proxy } = await import('@/proxy')
 
     const request = new NextRequest('http://localhost:3000/')
-    const response = await middleware(request)
+    const response = await proxy(request)
 
     expect(response.status).not.toBe(307)
   })
 
   it('未認証ユーザーが /history にアクセスするとリダイレクトされる', async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } })
-    const { middleware } = await import('@/middleware')
+    const { proxy } = await import('@/proxy')
 
     const request = new NextRequest('http://localhost:3000/history')
-    const response = await middleware(request)
+    const response = await proxy(request)
 
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toBe('http://localhost:3000/')
@@ -47,16 +47,16 @@ describe('ミドルウェア', () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'user-123' } },
     })
-    const { middleware } = await import('@/middleware')
+    const { proxy } = await import('@/proxy')
 
     const request = new NextRequest('http://localhost:3000/history')
-    const response = await middleware(request)
+    const response = await proxy(request)
 
     expect(response.status).not.toBe(307)
   })
 
   it('matcher設定がエクスポートされている', async () => {
-    const { config } = await import('@/middleware')
+    const { config } = await import('@/proxy')
     expect(config.matcher).toBeDefined()
     expect(config.matcher).toHaveLength(1)
   })
