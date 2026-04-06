@@ -1,8 +1,20 @@
 import { updateSession } from '@/lib/supabase/middleware'
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
+
+const PROTECTED_PATHS = ['/history']
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request)
+  const { response, user } = await updateSession(request)
+
+  const isProtected = PROTECTED_PATHS.some((path) =>
+    request.nextUrl.pathname.startsWith(path),
+  )
+
+  if (isProtected && !user) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
+  return response
 }
 
 export const config = {

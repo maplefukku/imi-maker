@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const mockGetSession = vi.fn()
+const mockGetUser = vi.fn()
 
 vi.mock('@supabase/ssr', () => ({
-  createServerClient: vi.fn((_url: string, _key: string, _options: unknown) => ({
+  createServerClient: vi.fn(() => ({
     auth: {
-      getSession: mockGetSession,
+      getUser: mockGetUser,
     },
   })),
 }))
@@ -15,11 +15,11 @@ describe('ミドルウェア', () => {
   beforeEach(() => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co')
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'test-anon-key')
-    mockGetSession.mockReset()
+    mockGetUser.mockReset()
   })
 
   it('公開パスはそのまま通過する', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: null } })
+    mockGetUser.mockResolvedValue({ data: { user: null } })
     const { middleware } = await import('@/middleware')
 
     const request = new NextRequest('http://localhost:3000/')
@@ -29,7 +29,7 @@ describe('ミドルウェア', () => {
   })
 
   it('未認証ユーザーが /history にアクセスするとリダイレクトされる', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: null } })
+    mockGetUser.mockResolvedValue({ data: { user: null } })
     const { middleware } = await import('@/middleware')
 
     const request = new NextRequest('http://localhost:3000/history')
@@ -40,8 +40,8 @@ describe('ミドルウェア', () => {
   })
 
   it('認証済みユーザーは /history にアクセスできる', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-123' } } },
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-123' } },
     })
     const { middleware } = await import('@/middleware')
 
