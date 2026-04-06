@@ -71,7 +71,7 @@ function MeaningContent() {
         transition={{ delay: 0.3 }}
       >
         <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-xs font-medium tracking-wider text-muted-foreground">
           見つけた意味
         </span>
       </motion.div>

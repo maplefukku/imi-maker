@@ -1,11 +1,17 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { useTheme } from 'next-themes'
+import { ArrowLeft, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function Header({ showBack = false }: { showBack?: boolean }) {
   const router = useRouter()
+  const { resolvedTheme, setTheme } = useTheme()
+
+  function toggleTheme() {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 border-b border-border/50">
@@ -23,9 +29,22 @@ export function Header({ showBack = false }: { showBack?: boolean }) {
         ) : (
           <div />
         )}
-        <span className="ml-auto text-lg font-semibold tracking-tight">
-          意味メーカー
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-full"
+            onClick={toggleTheme}
+            aria-label="テーマ切替"
+          >
+            <Sun className="size-4 dark:hidden" />
+            <Moon className="hidden size-4 dark:block" />
+            <span>テーマ</span>
+          </Button>
+          <span className="text-lg font-semibold tracking-tight">
+            意味メーカー
+          </span>
+        </div>
       </div>
     </header>
   )
