@@ -39,18 +39,79 @@ export async function generateMeaning(
   })
 
   if (!response.ok) {
-    throw new Error(`GLM API error: ${response.status}`)
+    let errorBody: string | undefined
+    try {
+      errorBody = await response.text()
+    } catch {
+      // レスポンスボディの読み取りに失敗
+    }
+    console.error('[GLM API] Request failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: `${baseUrl}chat/completions`,
+      model,
+      body: errorBody,
+    })
+    throw new Error(
+      `GLM API error: ${response.status} ${response.statusText}`,
+    )
   }
 
-  const data = await response.json()
-  const content = data.choices[0]?.message?.content
+  let rawText: string
+  try {
+    rawText = await response.text()
+  } catch (e) {
+    console.error('[GLM API] Failed to read response body:', e)
+    throw new Error('GLM API error: failed to read response body')
+  }
+
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(rawText)
+  } catch {
+    console.error(
+      '[GLM API] Response is not valid JSON:',
+      rawText.slice(0, 500),
+    )
+    throw new Error('GLM API error: invalid JSON response')
+  }
+
+  const choices = data.choices as
+    | Array<{ message?: { content?: string } }>
+    | undefined
+  const content = choices?.[0]?.message?.content
+
+  if (!content) {
+    console.error(
+      '[GLM API] Unexpected response structure:',
+      JSON.stringify(data).slice(0, 500),
+    )
+    throw new Error('GLM API error: no content in response')
+  }
 
   try {
     return JSON.parse(content)
   } catch {
+    // マークダウンコードブロックで囲まれたJSONを抽出して再パース
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (codeBlockMatch) {
+      try {
+        return JSON.parse(codeBlockMatch[1].trim())
+      } catch {
+        console.error('[GLM API] Failed to parse JSON from code block:', {
+          raw: content.slice(0, 200),
+          extracted: codeBlockMatch[1].trim().slice(0, 200),
+        })
+      }
+    }
+
+    console.warn(
+      '[GLM API] Content is not JSON, using as plain text:',
+      content.slice(0, 200),
+    )
     return {
       title: '見つけた意味',
-      body: content || '意味を見つけることができませんでした。',
+      body: content,
     }
   }
 }

@@ -24,9 +24,18 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ meaning })
   } catch (error) {
-    console.error('Meaning generation failed:', error)
+    const message =
+      error instanceof Error ? error.message : 'Unknown error'
+    console.error('[API /meaning] Generation failed:', {
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    const isDev = process.env.NODE_ENV === 'development'
     return NextResponse.json(
-      { error: '意味の生成に失敗しました' },
+      {
+        error: '意味の生成に失敗しました',
+        ...(isDev && { detail: message }),
+      },
       { status: 500 },
     )
   }

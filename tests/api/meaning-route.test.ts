@@ -56,13 +56,33 @@ describe('POST /api/meaning', () => {
     expect(res.status).toBe(400)
   })
 
-  it('should return 500 when GLM API fails', async () => {
-    mockGenerateMeaning.mockRejectedValueOnce(new Error('GLM API error: 500'))
+  it('should return 500 with detail in development mode', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    mockGenerateMeaning.mockRejectedValueOnce(
+      new Error('GLM API error: 500 Internal Server Error'),
+    )
 
     const res = await POST(createRequest({ action: 'バイトした' }))
     expect(res.status).toBe(500)
 
     const data = await res.json()
-    expect(data.error).toBeDefined()
+    expect(data.error).toBe('意味の生成に失敗しました')
+    expect(data.detail).toBe('GLM API error: 500 Internal Server Error')
+    vi.unstubAllEnvs()
+  })
+
+  it('should return 500 without detail in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    mockGenerateMeaning.mockRejectedValueOnce(
+      new Error('GLM API error: 500 Internal Server Error'),
+    )
+
+    const res = await POST(createRequest({ action: 'バイトした' }))
+    expect(res.status).toBe(500)
+
+    const data = await res.json()
+    expect(data.error).toBe('意味の生成に失敗しました')
+    expect(data.detail).toBeUndefined()
+    vi.unstubAllEnvs()
   })
 })

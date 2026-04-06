@@ -4,6 +4,14 @@ import { generateMeaning } from '@/lib/glm'
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
+/** response.text() を返すモックを作るヘルパー */
+function mockOkResponse(body: unknown) {
+  return {
+    ok: true,
+    text: async () => JSON.stringify(body),
+  }
+}
+
 describe('generateMeaning', () => {
   beforeEach(() => {
     vi.stubEnv('GLM_API_KEY', 'test-api-key')
@@ -13,9 +21,8 @@ describe('generateMeaning', () => {
   })
 
   it('should call GLM API with correct parameters', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
         choices: [{
           message: {
             content: JSON.stringify({
@@ -25,7 +32,7 @@ describe('generateMeaning', () => {
           },
         }],
       }),
-    })
+    )
 
     await generateMeaning('バイトした')
 
@@ -49,9 +56,8 @@ describe('generateMeaning', () => {
   })
 
   it('should return parsed title and body from valid JSON response', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
         choices: [{
           message: {
             content: JSON.stringify({
@@ -61,37 +67,128 @@ describe('generateMeaning', () => {
           },
         }],
       }),
-    })
+    )
 
     const result = await generateMeaning('バイトした')
     expect(result.title).toBe('人の感情を読む力')
     expect(result.body).toBe('接客って、相手が何を求めてるかを一瞬で読むトレーニングかもね。')
   })
 
-  it('should handle non-JSON response with fallback', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
+  it('should parse JSON wrapped in markdown code block', async () => {
+    const jsonContent = JSON.stringify({
+      title: '人の感情を読む力',
+      body: '接客って、相手が何を求めてるかを一瞬で読むトレーニングかもね。',
+    })
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: '```json\n' + jsonContent + '\n```',
+          },
+        }],
+      }),
+    )
+
+    const result = await generateMeaning('バイトした')
+    expect(result.title).toBe('人の感情を読む力')
+    expect(result.body).toContain('接客')
+  })
+
+  it('should parse JSON wrapped in plain code block', async () => {
+    const jsonContent = JSON.stringify({
+      title: 'テスト',
+      body: 'テスト本文',
+    })
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: '```\n' + jsonContent + '\n```',
+          },
+        }],
+      }),
+    )
+
+    const result = await generateMeaning('バイトした')
+    expect(result.title).toBe('テスト')
+    expect(result.body).toBe('テスト本文')
+  })
+
+  it('should fall back to plain text for non-JSON content', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
         choices: [{
           message: {
             content: 'これはJSONではないレスポンスです',
           },
         }],
       }),
-    })
+    )
 
     const result = await generateMeaning('バイトした')
     expect(result.title).toBe('見つけた意味')
     expect(result.body).toBe('これはJSONではないレスポンスです')
   })
 
-  it('should throw on API error', async () => {
+  it('should throw on empty content', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: null,
+          },
+        }],
+      }),
+    )
+
+    await expect(generateMeaning('バイトした')).rejects.toThrow(
+      'GLM API error: no content in response',
+    )
+  })
+
+  it('should throw on API error with status text', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
+      statusText: 'Internal Server Error',
+      text: async () => '{"error": "server failure"}',
     })
 
-    await expect(generateMeaning('バイトした')).rejects.toThrow('GLM API error: 500')
+    await expect(generateMeaning('バイトした')).rejects.toThrow(
+      'GLM API error: 500 Internal Server Error',
+    )
+  })
+
+  it('should throw on invalid JSON response body', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => '<html>Not JSON</html>',
+    })
+
+    await expect(generateMeaning('バイトした')).rejects.toThrow(
+      'GLM API error: invalid JSON response',
+    )
+  })
+
+  it('should throw when response body cannot be read', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => { throw new Error('network error') },
+    })
+
+    await expect(generateMeaning('バイトした')).rejects.toThrow(
+      'GLM API error: failed to read response body',
+    )
+  })
+
+  it('should throw on unexpected response structure (no choices)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({ result: 'unexpected' }),
+    )
+
+    await expect(generateMeaning('バイトした')).rejects.toThrow(
+      'GLM API error: no content in response',
+    )
   })
 
   it('should throw when API key is missing', async () => {
@@ -104,16 +201,15 @@ describe('generateMeaning', () => {
     vi.unstubAllEnvs()
     vi.stubEnv('GLM_API_KEY', 'test-api-key')
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
         choices: [{
           message: {
             content: JSON.stringify({ title: 'テスト', body: 'テスト本文' }),
           },
         }],
       }),
-    })
+    )
 
     await generateMeaning('テスト')
 
