@@ -74,4 +74,15 @@ describe('意味表示ページ', () => {
     render(<MeaningPage />)
     expect(screen.getByTestId('header')).toBeInTheDocument()
   })
+
+  it('actionのみでtitle/bodyがない場合はスケルトンが表示される', () => {
+    mockSearchParams.set('action', 'バイトした')
+    mockSearchParams.delete('title')
+    mockSearchParams.delete('body')
+
+    render(<MeaningPage />)
+    // スケルトンが表示される（結果テキストは表示されない）
+    expect(screen.queryByText('見つけた意味')).not.toBeInTheDocument()
+    expect(screen.queryByText('表示する意味がありません')).not.toBeInTheDocument()
+  })
 })
