@@ -191,6 +191,56 @@ describe('generateMeaning', () => {
     )
   })
 
+  it('should extract JSON from reasoning_content when content is empty', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: '',
+            reasoning_content: '思考プロセス... {"title":"テスト","body":"テスト本文"} ...',
+          },
+        }],
+      }),
+    )
+
+    const result = await generateMeaning('バイトした')
+    expect(result.title).toBe('テスト')
+    expect(result.body).toBe('テスト本文')
+  })
+
+  it('should throw when reasoning_content has invalid JSON', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: '',
+            reasoning_content: '思考プロセス... invalid json ...',
+          },
+        }],
+      }),
+    )
+
+    await expect(generateMeaning('バイトした')).rejects.toThrow(
+      'GLM API error: no content in response',
+    )
+  })
+
+  it('should fall back to plain text when code block JSON is invalid', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: '```json\n{invalid json}\n```',
+          },
+        }],
+      }),
+    )
+
+    const result = await generateMeaning('バイトした')
+    expect(result.title).toBe('見つけた意味')
+    expect(result.body).toContain('invalid')
+  })
+
   it('should throw when API key is missing', async () => {
     vi.stubEnv('GLM_API_KEY', '')
 
