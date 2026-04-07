@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
@@ -20,12 +20,48 @@ const MEANING_TYPES = [
 
 export type MeaningType = (typeof MEANING_TYPES)[number]['value']
 
+const DRAFT_KEY = 'imi-maker-draft-input'
+
 export default function InputPage() {
-  const [action, setAction] = useState('')
-  const [meaningType, setMeaningType] = useState<MeaningType>('anything')
+  const [action, setAction] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (saved) {
+        const draft = JSON.parse(saved) as { action?: string }
+        return draft.action ?? ''
+      }
+    } catch { /* ignore */ }
+    return ''
+  })
+  const [meaningType, setMeaningType] = useState<MeaningType>(() => {
+    if (typeof window === 'undefined') return 'anything'
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (saved) {
+        const draft = JSON.parse(saved) as { meaningType?: MeaningType }
+        return draft.meaningType ?? 'anything'
+      }
+    } catch { /* ignore */ }
+    return 'anything'
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+
+  useEffect(() => {
+    try {
+      if (action || meaningType !== 'anything') {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ action, meaningType }))
+      } else {
+        localStorage.removeItem(DRAFT_KEY)
+      }
+    } catch { /* ignore */ }
+  }, [action, meaningType])
+
+  const clearDraft = useCallback(() => {
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+  }, [])
 
   const isTooLong = action.length > 1000
   const isNearLimit = action.length > 800 && action.length <= 1000
@@ -58,6 +94,8 @@ export default function InputPage() {
 
       const data = await res.json()
       
+      clearDraft()
+
       // Track analytics event
       trackEvent('meaning_generated', { actionLength: action.trim().length, meaningType })
       

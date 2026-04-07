@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
@@ -22,9 +22,31 @@ vi.mock('@/components/header', () => ({
 
 import InputPage from '@/app/input/page'
 
+const DRAFT_KEY = 'imi-maker-draft-input'
+
+function createLocalStorageMock() {
+  let store: Record<string, string> = {}
+  return {
+    getItem: vi.fn((key: string) => store[key] ?? null),
+    setItem: vi.fn((key: string, value: string) => { store[key] = value }),
+    removeItem: vi.fn((key: string) => { delete store[key] }),
+    clear: vi.fn(() => { store = {} }),
+    get length() { return Object.keys(store).length },
+    key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
+  }
+}
+
 describe('入力ページ', () => {
+  let mockStorage: ReturnType<typeof createLocalStorageMock>
+
   beforeEach(() => {
     mockPush.mockClear()
+    mockStorage = createLocalStorageMock()
+    vi.stubGlobal('localStorage', mockStorage)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('質問見出しが表示される', () => {
@@ -127,6 +149,80 @@ describe('入力ページ', () => {
       }))
 
       mockFetch.mockRestore()
+    })
+  })
+
+  describe('入力内容の一時保存', () => {
+    it('入力するとLocalStorageに保存される', async () => {
+      const user = userEvent.setup()
+      render(<InputPage />)
+
+      const textarea = screen.getByLabelText('今日やったこと')
+      await user.type(textarea, 'バイトした')
+
+      const saved = JSON.parse(mockStorage.getItem(DRAFT_KEY)!)
+      expect(saved.action).toBe('バイトした')
+      expect(saved.meaningType).toBe('anything')
+    })
+
+    it('意味の種類を変更するとLocalStorageに保存される', async () => {
+      const user = userEvent.setup()
+      render(<InputPage />)
+
+      await user.type(screen.getByLabelText('今日やったこと'), 'テスト')
+      await user.click(screen.getByRole('radio', { name: '励まして' }))
+
+      const saved = JSON.parse(mockStorage.getItem(DRAFT_KEY)!)
+      expect(saved.meaningType).toBe('encourage')
+    })
+
+    it('ページ読み込み時にLocalStorageから復元される', () => {
+      mockStorage.setItem(DRAFT_KEY, JSON.stringify({ action: '復元テスト', meaningType: 'insight' }))
+
+      render(<InputPage />)
+
+      expect(screen.getByLabelText('今日やったこと')).toHaveValue('復元テスト')
+      expect(screen.getByRole('radio', { name: '気づかせて' })).toHaveAttribute('aria-checked', 'true')
+    })
+
+    it('意味生成成功後にLocalStorageがクリアされる', async () => {
+      const user = userEvent.setup()
+      const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify({ meaning: { title: 'テスト', body: 'テスト本文' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+
+      render(<InputPage />)
+
+      await user.type(screen.getByLabelText('今日やったこと'), 'バイトした')
+      expect(mockStorage.getItem(DRAFT_KEY)).not.toBeNull()
+
+      await user.click(screen.getByRole('button', { name: '意味を見つける' }))
+
+      expect(mockStorage.getItem(DRAFT_KEY)).toBeNull()
+
+      mockFetch.mockRestore()
+    })
+
+    it('空入力に戻すとLocalStorageがクリアされる', async () => {
+      const user = userEvent.setup()
+      render(<InputPage />)
+
+      const textarea = screen.getByLabelText('今日やったこと')
+      await user.type(textarea, 'テスト')
+      expect(mockStorage.getItem(DRAFT_KEY)).not.toBeNull()
+
+      await user.clear(textarea)
+      expect(mockStorage.getItem(DRAFT_KEY)).toBeNull()
+    })
+
+    it('LocalStorageが壊れていてもクラッシュしない', () => {
+      mockStorage.setItem(DRAFT_KEY, 'invalid-json')
+
+      expect(() => render(<InputPage />)).not.toThrow()
+      expect(screen.getByLabelText('今日やったこと')).toHaveValue('')
     })
   })
 })
