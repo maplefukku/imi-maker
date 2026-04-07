@@ -103,6 +103,11 @@ describe('DailyHints', () => {
     const user = userEvent.setup()
     render(<DailyHints onInsert={vi.fn()} />)
 
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: '今日のヒント' })).toBeInTheDocument()
+    })
+
+    // ヒントのボタンをクリック（aria-labelにヒントの質問が含まれる）
     const hintButtons = screen.getAllByRole('button').filter((btn) =>
       btn.getAttribute('aria-label')?.startsWith('ヒント:'),
     )
@@ -116,6 +121,10 @@ describe('DailyHints', () => {
   it('閉じるボタンでヒントが非表示になる', async () => {
     const user = userEvent.setup()
     render(<DailyHints onInsert={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('ヒントを閉じる')).toBeInTheDocument()
+    })
 
     const closeButton = screen.getByLabelText('ヒントを閉じる')
     await user.click(closeButton)
@@ -133,11 +142,13 @@ describe('DailyHints', () => {
     expect(screen.queryByRole('region', { name: '今日のヒント' })).not.toBeInTheDocument()
   })
 
-  it('昨日のスキップ記録なら今日は表示される', () => {
+  it('昨日のスキップ記録なら今日は表示される', async () => {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
     mockStorage.setItem(HINT_SEEN_KEY, yesterday)
 
     render(<DailyHints onInsert={vi.fn()} />)
-    expect(screen.getByRole('region', { name: '今日のヒント' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: '今日のヒント' })).toBeInTheDocument()
+    })
   })
 })
