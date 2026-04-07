@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,46 +21,80 @@ const MEANING_TYPES = [
 
 export type MeaningType = (typeof MEANING_TYPES)[number]['value']
 
-const DRAFT_KEY = 'imi-maker-draft-input'
+export const DRAFT_KEY = 'imi-maker-draft-input'
+const DEBOUNCE_MS = 3000
+
+interface DraftData {
+  action?: string
+  meaningType?: MeaningType
+}
+
+function readDraft(): DraftData | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const saved = localStorage.getItem(DRAFT_KEY)
+    if (saved) return JSON.parse(saved) as DraftData
+  } catch { /* ignore */ }
+  return null
+}
 
 export default function InputPage() {
-  const [action, setAction] = useState(() => {
-    if (typeof window === 'undefined') return ''
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY)
-      if (saved) {
-        const draft = JSON.parse(saved) as { action?: string }
-        return draft.action ?? ''
-      }
-    } catch { /* ignore */ }
-    return ''
-  })
-  const [meaningType, setMeaningType] = useState<MeaningType>(() => {
-    if (typeof window === 'undefined') return 'anything'
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY)
-      if (saved) {
-        const draft = JSON.parse(saved) as { meaningType?: MeaningType }
-        return draft.meaningType ?? 'anything'
-      }
-    } catch { /* ignore */ }
-    return 'anything'
-  })
+  const [action, setAction] = useState('')
+  const [meaningType, setMeaningType] = useState<MeaningType>('anything')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftShownRef = useRef(false)
 
+  // Show restore toast on mount if draft exists
   useEffect(() => {
-    try {
-      if (action || meaningType !== 'anything') {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ action, meaningType }))
-      } else {
-        localStorage.removeItem(DRAFT_KEY)
-      }
-    } catch { /* ignore */ }
+    if (draftShownRef.current) return
+    draftShownRef.current = true
+
+    const draft = readDraft()
+    if (!draft?.action) return
+
+    toast('前回の下書きがあります', {
+      description: '続きから始めますか？',
+      action: {
+        label: '続きから始める',
+        onClick: () => {
+          setAction(draft.action ?? '')
+          setMeaningType(draft.meaningType ?? 'anything')
+        },
+      },
+      cancel: {
+        label: '最初から書く',
+        onClick: () => {
+          try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+        },
+      },
+      duration: 10000,
+    })
+  }, [])
+
+  // Debounced save to localStorage
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    debounceRef.current = setTimeout(() => {
+      try {
+        if (action || meaningType !== 'anything') {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({ action, meaningType }))
+        } else {
+          localStorage.removeItem(DRAFT_KEY)
+        }
+      } catch { /* ignore */ }
+    }, DEBOUNCE_MS)
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [action, meaningType])
 
   const clearDraft = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
     try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
   }, [])
 
@@ -93,12 +128,12 @@ export default function InputPage() {
       }
 
       const data = await res.json()
-      
+
       clearDraft()
 
       // Track analytics event
       trackEvent('meaning_generated', { actionLength: action.trim().length, meaningType })
-      
+
       const params = new URLSearchParams({
         action: action.trim(),
         title: data.meaning.title,

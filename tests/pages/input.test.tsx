@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const mockPush = vi.fn()
@@ -20,9 +20,12 @@ vi.mock('@/components/header', () => ({
   Header: () => <header data-testid="header">意味メーカー</header>,
 }))
 
-import InputPage from '@/app/input/page'
+const mockToast = vi.fn()
+vi.mock('sonner', () => ({
+  toast: (...args: unknown[]) => mockToast(...args),
+}))
 
-const DRAFT_KEY = 'imi-maker-draft-input'
+import InputPage, { DRAFT_KEY } from '@/app/input/page'
 
 function createLocalStorageMock() {
   let store: Record<string, string> = {}
@@ -41,12 +44,15 @@ describe('入力ページ', () => {
 
   beforeEach(() => {
     mockPush.mockClear()
+    mockToast.mockClear()
     mockStorage = createLocalStorageMock()
     vi.stubGlobal('localStorage', mockStorage)
+    vi.useFakeTimers({ shouldAdvanceTime: true })
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   it('質問見出しが表示される', () => {
@@ -72,7 +78,7 @@ describe('入力ページ', () => {
   })
 
   it('テキスト入力後に送信ボタンが有効になる', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<InputPage />)
 
     const textarea = screen.getByLabelText('今日やったこと')
@@ -118,7 +124,7 @@ describe('入力ページ', () => {
     })
 
     it('チップをクリックすると選択が切り替わる', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       render(<InputPage />)
 
       const encourageChip = screen.getByRole('radio', { name: '励まして' })
@@ -129,7 +135,7 @@ describe('入力ページ', () => {
     })
 
     it('選択した種類がAPIに送信される', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
         new Response(JSON.stringify({ meaning: { title: 'テスト', body: 'テスト本文' } }), {
           status: 200,
@@ -152,41 +158,44 @@ describe('入力ページ', () => {
     })
   })
 
-  describe('入力内容の一時保存', () => {
-    it('入力するとLocalStorageに保存される', async () => {
-      const user = userEvent.setup()
+  describe('入力内容の一時保存（debounce）', () => {
+    it('入力後3秒のdebounce後にLocalStorageに保存される', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       render(<InputPage />)
 
       const textarea = screen.getByLabelText('今日やったこと')
       await user.type(textarea, 'バイトした')
 
-      const saved = JSON.parse(mockStorage.getItem(DRAFT_KEY)!)
-      expect(saved.action).toBe('バイトした')
-      expect(saved.meaningType).toBe('anything')
+      // debounce前は保存されていない
+      expect(mockStorage.setItem).not.toHaveBeenCalledWith(
+        DRAFT_KEY,
+        expect.any(String),
+      )
+
+      // 3秒経過後に保存される
+      act(() => { vi.advanceTimersByTime(3000) })
+
+      expect(mockStorage.setItem).toHaveBeenCalledWith(
+        DRAFT_KEY,
+        JSON.stringify({ action: 'バイトした', meaningType: 'anything' }),
+      )
     })
 
-    it('意味の種類を変更するとLocalStorageに保存される', async () => {
-      const user = userEvent.setup()
+    it('意味の種類を変更するとdebounce後にLocalStorageに保存される', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       render(<InputPage />)
 
       await user.type(screen.getByLabelText('今日やったこと'), 'テスト')
       await user.click(screen.getByRole('radio', { name: '励まして' }))
 
+      act(() => { vi.advanceTimersByTime(3000) })
+
       const saved = JSON.parse(mockStorage.getItem(DRAFT_KEY)!)
       expect(saved.meaningType).toBe('encourage')
     })
 
-    it('ページ読み込み時にLocalStorageから復元される', () => {
-      mockStorage.setItem(DRAFT_KEY, JSON.stringify({ action: '復元テスト', meaningType: 'insight' }))
-
-      render(<InputPage />)
-
-      expect(screen.getByLabelText('今日やったこと')).toHaveValue('復元テスト')
-      expect(screen.getByRole('radio', { name: '気づかせて' })).toHaveAttribute('aria-checked', 'true')
-    })
-
     it('意味生成成功後にLocalStorageがクリアされる', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
         new Response(JSON.stringify({ meaning: { title: 'テスト', body: 'テスト本文' } }), {
           status: 200,
@@ -197,24 +206,33 @@ describe('入力ページ', () => {
       render(<InputPage />)
 
       await user.type(screen.getByLabelText('今日やったこと'), 'バイトした')
+
+      // debounce発火させて保存
+      act(() => { vi.advanceTimersByTime(3000) })
       expect(mockStorage.getItem(DRAFT_KEY)).not.toBeNull()
 
       await user.click(screen.getByRole('button', { name: '意味を見つける' }))
 
-      expect(mockStorage.getItem(DRAFT_KEY)).toBeNull()
+      await waitFor(() => {
+        expect(mockStorage.getItem(DRAFT_KEY)).toBeNull()
+      })
 
       mockFetch.mockRestore()
     })
 
-    it('空入力に戻すとLocalStorageがクリアされる', async () => {
-      const user = userEvent.setup()
+    it('空入力に戻してdebounce後にLocalStorageがクリアされる', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       render(<InputPage />)
 
       const textarea = screen.getByLabelText('今日やったこと')
       await user.type(textarea, 'テスト')
+
+      act(() => { vi.advanceTimersByTime(3000) })
       expect(mockStorage.getItem(DRAFT_KEY)).not.toBeNull()
 
       await user.clear(textarea)
+
+      act(() => { vi.advanceTimersByTime(3000) })
       expect(mockStorage.getItem(DRAFT_KEY)).toBeNull()
     })
 
@@ -222,6 +240,55 @@ describe('入力ページ', () => {
       mockStorage.setItem(DRAFT_KEY, 'invalid-json')
 
       expect(() => render(<InputPage />)).not.toThrow()
+      expect(screen.getByLabelText('今日やったこと')).toHaveValue('')
+    })
+  })
+
+  describe('復元トースト', () => {
+    it('下書きがある場合トーストが表示される', () => {
+      mockStorage.setItem(DRAFT_KEY, JSON.stringify({ action: '復元テスト', meaningType: 'insight' }))
+
+      render(<InputPage />)
+
+      expect(mockToast).toHaveBeenCalledWith(
+        '前回の下書きがあります',
+        expect.objectContaining({
+          description: '続きから始めますか？',
+          action: expect.objectContaining({ label: '続きから始める' }),
+          cancel: expect.objectContaining({ label: '最初から書く' }),
+        }),
+      )
+    })
+
+    it('下書きがない場合トーストは表示されない', () => {
+      render(<InputPage />)
+      expect(mockToast).not.toHaveBeenCalled()
+    })
+
+    it('「続きから始める」で下書きが復元される', () => {
+      mockStorage.setItem(DRAFT_KEY, JSON.stringify({ action: '復元テスト', meaningType: 'insight' }))
+
+      render(<InputPage />)
+
+      // トーストのactionコールバックを取得して実行
+      const toastCall = mockToast.mock.calls[0]
+      const options = toastCall[1] as { action: { onClick: () => void } }
+      act(() => { options.action.onClick() })
+
+      expect(screen.getByLabelText('今日やったこと')).toHaveValue('復元テスト')
+      expect(screen.getByRole('radio', { name: '気づかせて' })).toHaveAttribute('aria-checked', 'true')
+    })
+
+    it('「最初から書く」でLocalStorageがクリアされる', () => {
+      mockStorage.setItem(DRAFT_KEY, JSON.stringify({ action: '復元テスト', meaningType: 'insight' }))
+
+      render(<InputPage />)
+
+      const toastCall = mockToast.mock.calls[0]
+      const options = toastCall[1] as { cancel: { onClick: () => void } }
+      act(() => { options.cancel.onClick() })
+
+      expect(mockStorage.getItem(DRAFT_KEY)).toBeNull()
       expect(screen.getByLabelText('今日やったこと')).toHaveValue('')
     })
   })
