@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Share2, Copy, Check } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { trackEvent } from '@/lib/analytics'
 
@@ -25,6 +26,9 @@ export function ShareButtons({ title, body, action }: ShareButtonsProps) {
       await navigator.clipboard.writeText(text)
       setCopied(true)
       trackEvent('shared', { method: 'clipboard' })
+      toast('コピーしました', {
+        description: 'クリップボードに保存されました',
+      })
       setTimeout(() => setCopied(false), 2000)
     } catch {
       // クリップボードAPIが使えない場合
