@@ -1,13 +1,170 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
-import { motion } from 'framer-motion'
+import { Suspense, useState, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ShareButtons } from '@/components/share-buttons'
+
+interface ActionItem {
+  id: string
+  text: string
+}
+
+const COMPLETED_ACTIONS_KEY = 'imi-maker-completed-actions'
+
+function getCompletedActions(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {}
+  try {
+    return JSON.parse(localStorage.getItem(COMPLETED_ACTIONS_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function toggleCompletedAction(actionKey: string, completed: boolean) {
+  const current = getCompletedActions()
+  if (completed) {
+    current[actionKey] = true
+  } else {
+    delete current[actionKey]
+  }
+  localStorage.setItem(COMPLETED_ACTIONS_KEY, JSON.stringify(current))
+}
+
+function ActionProposal({
+  action,
+  title,
+  body,
+}: {
+  action: string
+  title: string
+  body: string
+}) {
+  const [actions, setActions] = useState<ActionItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showActions, setShowActions] = useState(false)
+  const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    setCompletedMap(getCompletedActions())
+  }, [])
+
+  const fetchActions = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          meaningTitle: title,
+          meaningBody: body,
+        }),
+      })
+      if (!res.ok) {
+        throw new Error('アクション提案の取得に失敗しました')
+      }
+      const data = await res.json()
+      setActions(data.actions)
+      setShowActions(true)
+    } catch {
+      setError('提案の取得に失敗しました。もう一度試してみてください。')
+    } finally {
+      setLoading(false)
+    }
+  }, [action, title, body])
+
+  const handleToggle = (actionId: string) => {
+    const key = `${action}-${actionId}`
+    const newCompleted = !completedMap[key]
+    toggleCompletedAction(key, newCompleted)
+    setCompletedMap(getCompletedActions())
+  }
+
+  if (!showActions) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+      >
+        <Button
+          onClick={fetchActions}
+          disabled={loading}
+          className="h-12 w-full rounded-full border border-border/50 bg-transparent text-base font-semibold text-foreground hover:bg-muted/50 active:scale-95 transition-transform"
+        >
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              考え中...
+            </span>
+          ) : (
+            'これを活かす最初の一歩'
+          )}
+        </Button>
+        {error && (
+          <p className="mt-2 text-center text-sm text-destructive">{error}</p>
+        )}
+      </motion.div>
+    )
+  }
+
+  return (
+    <motion.div
+      className="space-y-3"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
+        <span className="text-xs font-medium tracking-wider text-muted-foreground">
+          最初の一歩
+        </span>
+      </div>
+      <div className="space-y-2">
+        <AnimatePresence>
+          {actions.map((item, i) => {
+            const key = `${action}-${item.id}`
+            const isCompleted = !!completedMap[key]
+            return (
+              <motion.label
+                key={item.id}
+                className={`flex cursor-pointer items-center gap-3 rounded-2xl border border-border/50 p-4 transition-colors ${
+                  isCompleted
+                    ? 'bg-muted/20 text-muted-foreground'
+                    : 'hover:bg-muted/30'
+                }`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isCompleted}
+                  onChange={() => handleToggle(item.id)}
+                  className="size-5 rounded-md border-2 border-border accent-emerald-500 transition-colors"
+                />
+                <span
+                  className={`text-sm leading-relaxed ${
+                    isCompleted ? 'line-through' : ''
+                  }`}
+                >
+                  {item.text}
+                </span>
+              </motion.label>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  )
+}
 
 function MeaningSkeleton() {
   return (
@@ -101,6 +258,8 @@ function MeaningContent() {
       >
         <ShareButtons title={title} body={body} action={action} />
       </motion.div>
+
+      <ActionProposal action={action} title={title} body={body} />
 
       <motion.div
         className="space-y-4 pt-4"
