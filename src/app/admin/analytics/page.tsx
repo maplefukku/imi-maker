@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Header } from '@/components/header'
 import { getEventStats, clearEvents } from '@/lib/analytics'
@@ -20,11 +20,10 @@ const EVENT_LABELS: Record<string, string> = {
 }
 
 export default function AnalyticsPage() {
-  const [stats, setStats] = useState<EventStats | null>(null)
-
-  useEffect(() => {
-    setStats(getEventStats())
-  }, [])
+  const [stats, setStats] = useState<EventStats | null>(() => {
+    if (typeof window === 'undefined') return null
+    return getEventStats()
+  })
 
   function handleClear() {
     clearEvents()
