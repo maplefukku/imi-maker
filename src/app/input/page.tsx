@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { Loader2 } from 'lucide-react'
 import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -34,7 +35,7 @@ export default function InputPage() {
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || '意味の生成に失敗しました')
+        throw new Error(data.error || '意味の生成に失敗しました。もう少し具体的に入力してみてください。')
       }
 
       const data = await res.json()
@@ -45,7 +46,7 @@ export default function InputPage() {
       })
       router.push(`/meaning?${params.toString()}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '意味の生成に失敗しました')
+      setError(err instanceof Error ? err.message : '意味の生成に失敗しました。もう少し具体的に入力してみてください。')
     } finally {
       setIsLoading(false)
     }
@@ -77,13 +78,22 @@ export default function InputPage() {
               className="min-h-[120px] rounded-2xl bg-muted/50 p-4 text-base border-border/50 resize-none"
               aria-label="今日やったこと"
             />
+            <div className="mt-2 flex items-center justify-between">
+              {isTooLong ? (
+                <p className="text-sm text-destructive">
+                  もう少し短くしてみて
+                </p>
+              ) : (
+                <span />
+              )}
+              <span
+                className={`text-xs tabular-nums ${isTooLong ? 'text-destructive' : 'text-muted-foreground'}`}
+                aria-label="文字数"
+              >
+                {action.length}/1000
+              </span>
+            </div>
           </motion.div>
-
-          {isTooLong && (
-            <p className="text-sm text-destructive">
-              もう少し短くしてみて
-            </p>
-          )}
 
           {error && (
             <p className="text-sm text-destructive" role="alert">
@@ -101,7 +111,14 @@ export default function InputPage() {
               disabled={isDisabled}
               className="h-12 w-full rounded-full text-base font-semibold hover:bg-primary/90 active:scale-95 transition-transform"
             >
-              {isLoading ? '意味を見つけてる...' : '意味を見つける'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  意味を見つけてる...
+                </>
+              ) : (
+                '意味を見つける'
+              )}
             </Button>
           </motion.div>
 
