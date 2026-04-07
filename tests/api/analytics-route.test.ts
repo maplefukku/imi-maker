@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
 
 const mockGetUser = vi.fn()
 const mockFrom = vi.fn()
@@ -16,8 +17,8 @@ import { GET, POST } from '@/app/api/analytics/route'
 
 const mockUser = { id: 'user-123', email: 'test@example.com' }
 
-function createPostRequest(body: unknown): Request {
-  return new Request('http://localhost/api/analytics', {
+function createPostRequest(body: unknown): NextRequest {
+  return new NextRequest('http://localhost/api/analytics', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -93,7 +94,7 @@ describe('POST /api/analytics', () => {
   })
 
   it('不正なJSONの場合400を返す', async () => {
-    const req = new Request('http://localhost/api/analytics', {
+    const req = new NextRequest('http://localhost/api/analytics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: 'invalid-json',
