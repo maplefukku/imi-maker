@@ -1,12 +1,15 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 const mockSearchParams = new URLSearchParams()
 
 vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>,
   },
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
 vi.mock('next/link', () => ({
@@ -24,9 +27,23 @@ vi.mock('@/components/header', () => ({
   Header: () => <header data-testid="header">意味メーカー</header>,
 }))
 
+vi.mock('@/components/share-buttons', () => ({
+  ShareButtons: () => <div data-testid="share-buttons">シェア</div>,
+}))
+
 import MeaningPage from '@/app/meaning/page'
 
 describe('意味表示ページ', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    const storage: Record<string, string> = {}
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn((key: string) => storage[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => { storage[key] = value }),
+      removeItem: vi.fn((key: string) => { delete storage[key] }),
+    })
+  })
+
   it('パラメータなしの場合、入力へのリンクが表示される', () => {
     mockSearchParams.delete('action')
     mockSearchParams.delete('title')
@@ -84,5 +101,121 @@ describe('意味表示ページ', () => {
     // スケルトンが表示される（結果テキストは表示されない）
     expect(screen.queryByText('見つけた意味')).not.toBeInTheDocument()
     expect(screen.queryByText('表示する意味がありません')).not.toBeInTheDocument()
+  })
+})
+
+describe('ActionProposal', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    const storage: Record<string, string> = {}
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn((key: string) => storage[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => { storage[key] = value }),
+      removeItem: vi.fn((key: string) => { delete storage[key] }),
+    })
+    mockSearchParams.set('action', 'テスト行動')
+    mockSearchParams.set('title', 'テストタイトル')
+    mockSearchParams.set('body', 'テスト本文')
+  })
+
+  it('「これを活かす最初の一歩」ボタンが表示される', () => {
+    render(<MeaningPage />)
+    expect(screen.getByRole('button', { name: 'これを活かす最初の一歩' })).toBeInTheDocument()
+  })
+
+  it('ボタンクリックでアクションを取得し表示する', async () => {
+    const user = userEvent.setup()
+    const mockActions = {
+      actions: [
+        { id: '1', text: 'アクション1' },
+        { id: '2', text: 'アクション2' },
+        { id: '3', text: 'アクション3' },
+      ],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockActions),
+    }))
+
+    render(<MeaningPage />)
+    await user.click(screen.getByRole('button', { name: 'これを活かす最初の一歩' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('アクション1')).toBeInTheDocument()
+      expect(screen.getByText('アクション2')).toBeInTheDocument()
+      expect(screen.getByText('アクション3')).toBeInTheDocument()
+    })
+    expect(screen.getByText('最初の一歩')).toBeInTheDocument()
+  })
+
+  it('APIエラー時にエラーメッセージが表示される', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+    }))
+
+    render(<MeaningPage />)
+    await user.click(screen.getByRole('button', { name: 'これを活かす最初の一歩' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('提案の取得に失敗しました。もう一度試してみてください。')).toBeInTheDocument()
+    })
+  })
+
+  it('ネットワークエラー時にエラーメッセージが表示される', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')))
+
+    render(<MeaningPage />)
+    await user.click(screen.getByRole('button', { name: 'これを活かす最初の一歩' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('提案の取得に失敗しました。もう一度試してみてください。')).toBeInTheDocument()
+    })
+  })
+
+  it('チェックボックスをトグルできる', async () => {
+    const user = userEvent.setup()
+    const mockActions = {
+      actions: [
+        { id: '1', text: 'アクション1' },
+      ],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockActions),
+    }))
+
+    render(<MeaningPage />)
+    await user.click(screen.getByRole('button', { name: 'これを活かす最初の一歩' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('アクション1')).toBeInTheDocument()
+    })
+
+    const checkbox = screen.getByRole('checkbox')
+    expect(checkbox).not.toBeChecked()
+
+    await user.click(checkbox)
+    expect(checkbox).toBeChecked()
+
+    await user.click(checkbox)
+    expect(checkbox).not.toBeChecked()
+  })
+
+  it('ローディング中に「考え中...」が表示される', async () => {
+    let resolvePromise: (value: unknown) => void
+    const pendingPromise = new Promise((resolve) => { resolvePromise = resolve })
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(pendingPromise))
+
+    const user = userEvent.setup()
+    render(<MeaningPage />)
+    await user.click(screen.getByRole('button', { name: 'これを活かす最初の一歩' }))
+
+    expect(screen.getByText('考え中...')).toBeInTheDocument()
+
+    // cleanup
+    resolvePromise!({ ok: true, json: () => Promise.resolve({ actions: [] }) })
   })
 })
