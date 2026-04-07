@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react'
 import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { trackEvent } from '@/lib/analytics'
 
 const ease = [0.25, 0.1, 0.25, 1] as const
 
@@ -56,6 +57,10 @@ export default function InputPage() {
       }
 
       const data = await res.json()
+      
+      // Track analytics event
+      trackEvent('meaning_generated', { actionLength: action.trim().length, meaningType })
+      
       const params = new URLSearchParams({
         action: action.trim(),
         title: data.meaning.title,

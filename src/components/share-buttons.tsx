@@ -1,7 +1,9 @@
 'use client'
 
-import { Share2 } from 'lucide-react'
+import { useState } from 'react'
+import { Share2, Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { trackEvent } from '@/lib/analytics'
 
 interface ShareButtonsProps {
   title: string
@@ -15,15 +17,29 @@ function buildShareText(title: string, body: string): string {
 }
 
 export function ShareButtons({ title, body, action }: ShareButtonsProps) {
+  const [copied, setCopied] = useState(false)
   const text = buildShareText(title, body)
+
+  async function copyToClipboard() {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      trackEvent('shared', { method: 'clipboard' })
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // クリップボードAPIが使えない場合
+    }
+  }
 
   function shareToTwitter() {
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
+    trackEvent('shared', { method: 'twitter' })
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   function shareToLine() {
     const url = `https://social-plugins.line.me/lineit/share?text=${encodeURIComponent(text)}`
+    trackEvent('shared', { method: 'line' })
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
@@ -34,6 +50,7 @@ export function ShareButtons({ title, body, action }: ShareButtonsProps) {
         title: title || '意味メーカー',
         text: `${action}の意味: ${body}`,
       })
+      trackEvent('shared', { method: 'native' })
     } catch {
       // ユーザーがキャンセルした場合
     }
@@ -62,6 +79,19 @@ export function ShareButtons({ title, body, action }: ShareButtonsProps) {
         >
           <LineIcon className="size-4" />
           <span>LINE</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          onClick={copyToClipboard}
+        >
+          {copied ? (
+            <Check className="size-4 text-emerald-500" />
+          ) : (
+            <Copy className="size-4" />
+          )}
+          <span>{copied ? 'コピーしました' : 'コピー'}</span>
         </Button>
         {hasNativeShare && (
           <Button
