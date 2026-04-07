@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('framer-motion', () => ({
   motion: {
@@ -21,6 +21,16 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/components/header', () => ({
   Header: () => <header data-testid="header">意味メーカー</header>,
+}))
+
+const mockGetUser = vi.fn().mockResolvedValue({ data: { user: null } })
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getUser: mockGetUser,
+    },
+  }),
 }))
 
 import LandingPage from '@/app/page'
@@ -49,5 +59,13 @@ describe('ランディングページ', () => {
   it('ヘッダーが表示される', () => {
     render(<LandingPage />)
     expect(screen.getByTestId('header')).toBeInTheDocument()
+  })
+
+  it('ログイン済みの場合「履歴を見る」が表示される', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    render(<LandingPage />)
+    await waitFor(() => {
+      expect(screen.getByText('履歴を見る')).toBeInTheDocument()
+    })
   })
 })

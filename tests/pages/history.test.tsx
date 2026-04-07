@@ -49,7 +49,6 @@ describe('履歴ページ', () => {
   it('ローディング中にスケルトンが表示される', () => {
     global.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof fetch
     render(<HistoryPage />)
-    // スケルトン要素が3つ表示される
     const skeletons = document.querySelectorAll('.animate-pulse')
     expect(skeletons.length).toBe(3)
   })
@@ -86,7 +85,6 @@ describe('履歴ページ', () => {
       expect(screen.getByText(/とても長いアクション/)).toBeInTheDocument()
     })
 
-    // 40文字+...で省略されている
     const truncated = screen.getByText(/とても長いアクション/)
     expect(truncated.textContent!.endsWith('...')).toBe(true)
   })
@@ -146,5 +144,20 @@ describe('履歴ページ', () => {
     global.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof fetch
     render(<HistoryPage />)
     expect(screen.getByTestId('header')).toBeInTheDocument()
+  })
+
+  it('各カードに詳細リンクがある', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meanings: mockMeanings }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryPage />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText('詳細を見る')).toHaveLength(2)
+    })
   })
 })

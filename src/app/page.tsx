@@ -1,13 +1,24 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/header'
+import { createClient } from '@/lib/supabase/client'
 
 const ease = [0.25, 0.1, 0.25, 1] as const
 
 export default function LandingPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      setIsLoggedIn(!!data.user)
+    })
+  }, [])
+
   return (
     <div className="flex min-h-full flex-col">
       <Header />
@@ -36,6 +47,7 @@ export default function LandingPage() {
           </motion.p>
 
           <motion.div
+            className="space-y-3"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease, delay: 0.2 }}
@@ -47,6 +59,18 @@ export default function LandingPage() {
                 やってみる
               </Button>
             </Link>
+            {isLoggedIn && (
+              <div className="pt-2">
+                <Link href="/history">
+                  <Button
+                    variant="ghost"
+                    className="h-10 rounded-full px-6 text-sm"
+                  >
+                    履歴を見る
+                  </Button>
+                </Link>
+              </div>
+            )}
           </motion.div>
         </div>
       </main>
