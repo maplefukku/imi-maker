@@ -1,3 +1,24 @@
+const DEEP_DIVE_QUESTIONS_PROMPT = `あなたは「意味メーカー」のAIです。ユーザーが見つけた意味をさらに深掘りするための質問を3つ生成します。
+
+ルール:
+- ユーザーが自分自身について新たな気づきを得られる質問
+- 答えやすく、でも少し考えさせる問い
+- 説教しない。義務感を与えない
+- 「〜ですか？」「〜かも？」のような柔らかい表現
+- JSON配列で返す: [{"id": "1", "text": "..."}, {"id": "2", "text": "..."}, {"id": "3", "text": "..."}]
+- textは60文字以内`
+
+const DEEP_DIVE_MEANING_PROMPT = `あなたは「意味メーカー」のAIです。会話の流れを踏まえて、ユーザーの行動からさらに深い意味を見つけます。
+
+ルール:
+- 見出し（10文字以内）と本文（80-120文字）で返す
+- 前回の意味とは異なる新しい視点を提供する
+- 説教しない。「すごい」「えらい」も言わない
+- 「かもね」「〜してるのかも」のような柔らかい語尾
+- 具体的なスキルや力に紐づける
+- 楽しげに、軽く
+- JSON形式で返す: {"title": "...", "body": "..."}`
+
 const ACTIONS_SYSTEM_PROMPT = `あなたは「意味メーカー」のAIです。ユーザーが見つけた意味をもとに、すぐに実行できる小さなアクションを3つ提案します。
 
 ルール:
@@ -262,5 +283,230 @@ export async function generateActions(
       }
     }
     throw new Error('GLM API error: failed to parse actions response')
+  }
+}
+
+export interface DeepDiveQuestion {
+  id: string
+  text: string
+}
+
+interface ConversationEntry {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export async function generateDeepDiveQuestions(
+  action: string,
+  meaningTitle: string,
+  meaningBody: string,
+  conversation: ConversationEntry[] = [],
+): Promise<DeepDiveQuestion[]> {
+  const apiKey = process.env.GLM_API_KEY
+  if (!apiKey) {
+    throw new Error('GLM_API_KEY is not set')
+  }
+
+  const baseUrl =
+    process.env.GLM_BASE_URL || 'https://api.z.ai/api/coding/paas/v4/'
+  const model = process.env.GLM_MODEL || 'glm-4.7'
+
+  const messages = [
+    { role: 'system', content: DEEP_DIVE_QUESTIONS_PROMPT },
+    ...conversation,
+    {
+      role: 'user',
+      content: `やったこと: ${action}\n見つけた意味: ${meaningTitle} — ${meaningBody}\n\nこの意味をさらに深掘りする質問を3つ考えてください。`,
+    },
+  ]
+
+  const response = await fetch(`${baseUrl}chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.8,
+      max_tokens: 2000,
+    }),
+  })
+
+  if (!response.ok) {
+    let errorBody: string | undefined
+    try {
+      errorBody = await response.text()
+    } catch {
+      // ignore
+    }
+    console.error('[GLM API] Deep dive questions request failed:', {
+      status: response.status,
+      body: errorBody,
+    })
+    throw new Error(
+      `GLM API error: ${response.status} ${response.statusText}`,
+    )
+  }
+
+  let rawText: string
+  try {
+    rawText = await response.text()
+  } catch (e) {
+    console.error('[GLM API] Failed to read deep dive response:', e)
+    throw new Error('GLM API error: failed to read response body')
+  }
+
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(rawText)
+  } catch {
+    console.error('[GLM API] Deep dive response not valid JSON:', rawText.slice(0, 500))
+    throw new Error('GLM API error: invalid JSON response')
+  }
+
+  const choices = data.choices as
+    | Array<{ message?: { content?: string; reasoning_content?: string } }>
+    | undefined
+  const message = choices?.[0]?.message
+  const content = message?.content?.trim() || null
+
+  if (!content) {
+    const reasoning = message?.reasoning_content
+    if (reasoning) {
+      const jsonMatch = reasoning.match(/\[[\s\S]*?\]/)
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0])
+        } catch {
+          // fall through
+        }
+      }
+    }
+    throw new Error('GLM API error: no content in deep dive response')
+  }
+
+  try {
+    return JSON.parse(content)
+  } catch {
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (codeBlockMatch) {
+      try {
+        return JSON.parse(codeBlockMatch[1].trim())
+      } catch {
+        // fall through
+      }
+    }
+    throw new Error('GLM API error: failed to parse deep dive response')
+  }
+}
+
+export async function generateDeepDiveMeaning(
+  action: string,
+  conversation: ConversationEntry[],
+): Promise<{ title: string; body: string }> {
+  const apiKey = process.env.GLM_API_KEY
+  if (!apiKey) {
+    throw new Error('GLM_API_KEY is not set')
+  }
+
+  const baseUrl =
+    process.env.GLM_BASE_URL || 'https://api.z.ai/api/coding/paas/v4/'
+  const model = process.env.GLM_MODEL || 'glm-4.7'
+
+  const messages = [
+    { role: 'system', content: DEEP_DIVE_MEANING_PROMPT },
+    ...conversation,
+    {
+      role: 'user',
+      content: `やったこと: ${action}\n\nこの会話の流れを踏まえて、新しい意味を見つけてください。`,
+    },
+  ]
+
+  const response = await fetch(`${baseUrl}chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.8,
+      max_tokens: 2000,
+    }),
+  })
+
+  if (!response.ok) {
+    let errorBody: string | undefined
+    try {
+      errorBody = await response.text()
+    } catch {
+      // ignore
+    }
+    console.error('[GLM API] Deep dive meaning request failed:', {
+      status: response.status,
+      body: errorBody,
+    })
+    throw new Error(
+      `GLM API error: ${response.status} ${response.statusText}`,
+    )
+  }
+
+  let rawText: string
+  try {
+    rawText = await response.text()
+  } catch (e) {
+    console.error('[GLM API] Failed to read deep dive meaning response:', e)
+    throw new Error('GLM API error: failed to read response body')
+  }
+
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(rawText)
+  } catch {
+    console.error('[GLM API] Deep dive meaning response not valid JSON:', rawText.slice(0, 500))
+    throw new Error('GLM API error: invalid JSON response')
+  }
+
+  const choices = data.choices as
+    | Array<{ message?: { content?: string; reasoning_content?: string } }>
+    | undefined
+  const message = choices?.[0]?.message
+  const content = message?.content?.trim() || null
+
+  if (!content) {
+    const reasoning = message?.reasoning_content
+    if (reasoning) {
+      const jsonMatch = reasoning.match(
+        /\{\s*"title"\s*:\s*"[^"]*"\s*,\s*"body"\s*:\s*"[^"]*"\s*\}/,
+      )
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0])
+        } catch {
+          // fall through
+        }
+      }
+    }
+    throw new Error('GLM API error: no content in deep dive meaning response')
+  }
+
+  try {
+    return JSON.parse(content)
+  } catch {
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (codeBlockMatch) {
+      try {
+        return JSON.parse(codeBlockMatch[1].trim())
+      } catch {
+        // fall through
+      }
+    }
+    return {
+      title: '新たな意味',
+      body: content,
+    }
   }
 }
