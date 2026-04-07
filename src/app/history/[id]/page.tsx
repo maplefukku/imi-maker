@@ -87,6 +87,35 @@ export default function HistoryDetailPage() {
                 </p>
               </div>
 
+              {meaning.suggestions && meaning.suggestions.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="text-xs font-medium tracking-wider text-muted-foreground">
+                      アクション提案
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {meaning.suggestions.map((s, i) => (
+                      <li
+                        key={i}
+                        className="rounded-2xl border border-border/50 p-4 text-sm leading-relaxed"
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                {new Date(meaning.created_at).toLocaleDateString('ja-JP', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
+
               <ShareButtons
                 title={meaning.title ?? ''}
                 body={meaning.meaning}

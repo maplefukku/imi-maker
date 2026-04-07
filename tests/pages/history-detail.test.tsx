@@ -33,7 +33,7 @@ const mockMeaning = {
   action: 'バイトした',
   meaning: '人の感情を読む力が育っている',
   title: '共感力の成長',
-  suggestions: [],
+  suggestions: ['日記を書いてみる', '友達に話してみる'],
   created_at: '2026-04-01T10:00:00Z',
 }
 
@@ -116,6 +116,57 @@ describe('セッション詳細ページ', () => {
 
     const historyLink = screen.getByText('履歴に戻る').closest('a')
     expect(historyLink).toHaveAttribute('href', '/history')
+  })
+
+  it('アクション提案が表示される', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meaning: mockMeaning }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryDetailPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('アクション提案')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('日記を書いてみる')).toBeInTheDocument()
+    expect(screen.getByText('友達に話してみる')).toBeInTheDocument()
+  })
+
+  it('日付が表示される', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meaning: mockMeaning }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryDetailPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('2026年4月1日')).toBeInTheDocument()
+    })
+  })
+
+  it('suggestionsが空の場合はアクション提案セクションを表示しない', async () => {
+    const meaningNoSuggestions = { ...mockMeaning, suggestions: [] }
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meaning: meaningNoSuggestions }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryDetailPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('バイトした')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('アクション提案')).not.toBeInTheDocument()
   })
 
   it('存在しないIDの場合エラーが表示される', async () => {
