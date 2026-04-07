@@ -1,8 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { ArrowLeft, Moon, Sun } from 'lucide-react'
+import { ArrowLeft, Clock, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function Header({ showBack = false }: { showBack?: boolean }) {
@@ -30,6 +31,17 @@ export function Header({ showBack = false }: { showBack?: boolean }) {
           <div />
         )}
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-full"
+            asChild
+          >
+            <Link href="/history">
+              <Clock className="size-4" />
+              <span>履歴</span>
+            </Link>
+          </Button>
           <Button
             variant="ghost"
             size="sm"
