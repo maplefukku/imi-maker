@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Lightbulb, X } from 'lucide-react'
 import {
@@ -17,15 +17,9 @@ interface DailyHintsProps {
 }
 
 export function DailyHints({ onInsert }: DailyHintsProps) {
-  const [visible, setVisible] = useState(false)
-  const [hints, setHints] = useState<Hint[]>([])
+  const [hints] = useState<Hint[]>(() => isHintSeenToday() ? [] : getHintsForDate())
+  const [visible, setVisible] = useState(() => hints.length > 0)
   const [activeIndex, setActiveIndex] = useState(0)
-
-  useEffect(() => {
-    if (isHintSeenToday()) return
-    setHints(getHintsForDate())
-    setVisible(true)
-  }, [])
 
   function handleSkip() {
     markHintSeen()
