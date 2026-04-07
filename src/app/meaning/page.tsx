@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ShareButtons } from '@/components/share-buttons'
 
 function MeaningSkeleton() {
   return (
@@ -91,6 +92,14 @@ function MeaningContent() {
         <p className="text-base leading-relaxed text-muted-foreground">
           {body}
         </p>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6 }}
+      >
+        <ShareButtons title={title} body={body} action={action} />
       </motion.div>
 
       <motion.div

@@ -78,4 +78,55 @@ describe('入力ページ', () => {
     render(<InputPage />)
     expect(screen.getByTestId('header')).toBeInTheDocument()
   })
+
+  describe('意味の種類チップ', () => {
+    it('チップ選択UIが表示される', () => {
+      render(<InputPage />)
+      expect(screen.getByRole('radiogroup', { name: '意味の種類' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'なんでもOK' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: '励まして' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: '気づかせて' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: '行動指針をちょうだい' })).toBeInTheDocument()
+    })
+
+    it('デフォルトで「なんでもOK」が選択されている', () => {
+      render(<InputPage />)
+      const defaultChip = screen.getByRole('radio', { name: 'なんでもOK' })
+      expect(defaultChip).toHaveAttribute('aria-checked', 'true')
+    })
+
+    it('チップをクリックすると選択が切り替わる', async () => {
+      const user = userEvent.setup()
+      render(<InputPage />)
+
+      const encourageChip = screen.getByRole('radio', { name: '励まして' })
+      await user.click(encourageChip)
+
+      expect(encourageChip).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByRole('radio', { name: 'なんでもOK' })).toHaveAttribute('aria-checked', 'false')
+    })
+
+    it('選択した種類がAPIに送信される', async () => {
+      const user = userEvent.setup()
+      const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify({ meaning: { title: 'テスト', body: 'テスト本文' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+
+      render(<InputPage />)
+
+      await user.click(screen.getByRole('radio', { name: '励まして' }))
+      await user.type(screen.getByLabelText('今日やったこと'), 'バイトした')
+      await user.click(screen.getByRole('button', { name: '意味を見つける' }))
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/meaning', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ action: 'バイトした', meaningType: 'encourage' }),
+      }))
+
+      mockFetch.mockRestore()
+    })
+  })
 })

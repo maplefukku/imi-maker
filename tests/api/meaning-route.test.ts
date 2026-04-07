@@ -34,7 +34,7 @@ describe('POST /api/meaning', () => {
     expect(res.status).toBe(200)
     expect(data.meaning.title).toBe('人の感情を読む力')
     expect(data.meaning.body).toContain('接客')
-    expect(mockGenerateMeaning).toHaveBeenCalledWith('バイトした')
+    expect(mockGenerateMeaning).toHaveBeenCalledWith('バイトした', 'anything')
   })
 
   it('should return 400 when action is missing', async () => {
@@ -84,5 +84,35 @@ describe('POST /api/meaning', () => {
     expect(data.error).toBe('意味の生成に失敗しました')
     expect(data.detail).toBeUndefined()
     vi.unstubAllEnvs()
+  })
+
+  it('should pass meaningType to generateMeaning', async () => {
+    mockGenerateMeaning.mockResolvedValueOnce({
+      title: 'テスト',
+      body: 'テスト本文',
+    })
+
+    await POST(createRequest({ action: 'バイトした', meaningType: 'encourage' }))
+    expect(mockGenerateMeaning).toHaveBeenCalledWith('バイトした', 'encourage')
+  })
+
+  it('should default to anything for invalid meaningType', async () => {
+    mockGenerateMeaning.mockResolvedValueOnce({
+      title: 'テスト',
+      body: 'テスト本文',
+    })
+
+    await POST(createRequest({ action: 'バイトした', meaningType: 'invalid' }))
+    expect(mockGenerateMeaning).toHaveBeenCalledWith('バイトした', 'anything')
+  })
+
+  it('should default to anything when meaningType is not provided', async () => {
+    mockGenerateMeaning.mockResolvedValueOnce({
+      title: 'テスト',
+      body: 'テスト本文',
+    })
+
+    await POST(createRequest({ action: 'バイトした' }))
+    expect(mockGenerateMeaning).toHaveBeenCalledWith('バイトした', 'anything')
   })
 })

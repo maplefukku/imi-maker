@@ -247,6 +247,74 @@ describe('generateMeaning', () => {
     await expect(generateMeaning('バイトした')).rejects.toThrow('GLM_API_KEY')
   })
 
+  it('should include encourage instruction in system prompt', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: JSON.stringify({ title: 'テスト', body: 'テスト本文' }),
+          },
+        }],
+      }),
+    )
+
+    await generateMeaning('バイトした', 'encourage')
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.messages[0].content).toContain('励まし')
+  })
+
+  it('should include insight instruction in system prompt', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: JSON.stringify({ title: 'テスト', body: 'テスト本文' }),
+          },
+        }],
+      }),
+    )
+
+    await generateMeaning('バイトした', 'insight')
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.messages[0].content).toContain('気づいていない')
+  })
+
+  it('should include action instruction in system prompt', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: JSON.stringify({ title: 'テスト', body: 'テスト本文' }),
+          },
+        }],
+      }),
+    )
+
+    await generateMeaning('バイトした', 'action')
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.messages[0].content).toContain('行動指針')
+  })
+
+  it('should not add extra instruction for anything type', async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockOkResponse({
+        choices: [{
+          message: {
+            content: JSON.stringify({ title: 'テスト', body: 'テスト本文' }),
+          },
+        }],
+      }),
+    )
+
+    await generateMeaning('バイトした', 'anything')
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.messages[0].content).not.toContain('追加指示')
+  })
+
   it('should use default base URL when env is not set', async () => {
     vi.unstubAllEnvs()
     vi.stubEnv('GLM_API_KEY', 'test-api-key')
