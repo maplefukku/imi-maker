@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    section: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => <section {...props}>{children}</section>,
   },
 }))
 
@@ -159,5 +160,122 @@ describe('履歴ページ', () => {
     await waitFor(() => {
       expect(screen.getAllByText('詳細を見る')).toHaveLength(2)
     })
+  })
+
+  it('タイムライン形式で表示される', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meanings: mockMeanings }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('timeline')).toBeInTheDocument()
+    })
+  })
+
+  it('タグが表示される', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meanings: mockMeanings }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('#成長')).toBeInTheDocument()
+    })
+  })
+
+  it('月間サマリーが表示される', async () => {
+    const now = new Date()
+    const thisMonthDate = new Date(now.getFullYear(), now.getMonth(), 5).toISOString()
+    const thisMonthMeanings = [
+      {
+        id: '10',
+        action: '成長を感じた',
+        meaning: '人の感情を読む力が育っている',
+        title: '共感力の成長',
+        suggestions: [],
+        created_at: thisMonthDate,
+      },
+    ]
+
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meanings: thisMonthMeanings }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('monthly-summary')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('今月の意味')).toBeInTheDocument()
+    expect(screen.getByText('1')).toBeInTheDocument()
+  })
+
+  it('月間サマリーに傾向タグが表示される', async () => {
+    const now = new Date()
+    const thisMonthDate = new Date(now.getFullYear(), now.getMonth(), 5).toISOString()
+    const thisMonthMeanings = [
+      {
+        id: '10',
+        action: '成長を感じた',
+        meaning: '仲間と挑戦して成長できた',
+        suggestions: [],
+        created_at: thisMonthDate,
+      },
+    ]
+
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meanings: thisMonthMeanings }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('monthly-tags')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('今月の傾向')).toBeInTheDocument()
+  })
+
+  it('今月データがない場合は月間サマリーが非表示', async () => {
+    const oldMeanings = [
+      {
+        id: '99',
+        action: '昔の体験',
+        meaning: '遠い過去の記録',
+        suggestions: [],
+        created_at: '2020-01-15T10:00:00Z',
+      },
+    ]
+
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ meanings: oldMeanings }),
+      })
+    ) as unknown as typeof fetch
+
+    render(<HistoryPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('昔の体験')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('monthly-summary')).not.toBeInTheDocument()
   })
 })
