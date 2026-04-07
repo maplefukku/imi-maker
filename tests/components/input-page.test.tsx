@@ -121,6 +121,7 @@ describe('InputPage', () => {
     const user = userEvent.setup()
     mockFetch.mockResolvedValueOnce({
       ok: false,
+      status: 400,
       json: async () => ({ error: 'エラーが発生しました' }),
     })
 
@@ -131,6 +132,74 @@ describe('InputPage', () => {
     await user.click(button)
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toBeInTheDocument()
+    expect(alert).toHaveTextContent('エラーが発生しました')
+  })
+
+  it('should show rate limit error on 429', async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+    })
+
+    render(<InputPage />)
+    const textarea = screen.getByLabelText('今日やったこと')
+    await user.type(textarea, 'バイトした')
+    const button = screen.getByRole('button', { name: '意味を見つける' })
+    await user.click(button)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('リクエストが多すぎます')
+  })
+
+  it('should show server error on 500', async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    })
+
+    render(<InputPage />)
+    const textarea = screen.getByLabelText('今日やったこと')
+    await user.type(textarea, 'バイトした')
+    const button = screen.getByRole('button', { name: '意味を見つける' })
+    await user.click(button)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('サーバーで問題が発生しました')
+  })
+
+  it('should show network error on fetch failure', async () => {
+    const user = userEvent.setup()
+    mockFetch.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    render(<InputPage />)
+    const textarea = screen.getByLabelText('今日やったこと')
+    await user.type(textarea, 'バイトした')
+    const button = screen.getByRole('button', { name: '意味を見つける' })
+    await user.click(button)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('ネットワークに接続できませんでした')
+  })
+
+  it('should show warning color when near character limit', async () => {
+    render(<InputPage />)
+    const textarea = screen.getByLabelText('今日やったこと')
+    const { fireEvent } = await import('@testing-library/react')
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(850) } })
+
+    const counter = screen.getByLabelText('文字数')
+    expect(counter).toHaveTextContent('残り150文字')
+  })
+
+  it('should show negative remaining when over limit', async () => {
+    render(<InputPage />)
+    const textarea = screen.getByLabelText('今日やったこと')
+    const { fireEvent } = await import('@testing-library/react')
+    fireEvent.change(textarea, { target: { value: 'あ'.repeat(1050) } })
+
+    const counter = screen.getByLabelText('文字数')
+    expect(counter).toHaveTextContent('残り-50文字')
   })
 })

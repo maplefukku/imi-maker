@@ -17,6 +17,7 @@ export default function InputPage() {
   const router = useRouter()
 
   const isTooLong = action.length > 1000
+  const isNearLimit = action.length > 800 && action.length <= 1000
   const isEmpty = action.trim() === ''
   const isDisabled = isEmpty || isTooLong || isLoading
 
@@ -34,6 +35,12 @@ export default function InputPage() {
       })
 
       if (!res.ok) {
+        if (res.status === 429) {
+          throw new Error('リクエストが多すぎます。少し待ってからもう一度試してください。')
+        }
+        if (res.status >= 500) {
+          throw new Error('サーバーで問題が発生しました。しばらくしてからもう一度試してください。')
+        }
         const data = await res.json()
         throw new Error(data.error || '意味の生成に失敗しました。もう少し具体的に入力してみてください。')
       }
@@ -46,7 +53,11 @@ export default function InputPage() {
       })
       router.push(`/meaning?${params.toString()}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '意味の生成に失敗しました。もう少し具体的に入力してみてください。')
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        setError('ネットワークに接続できませんでした。接続を確認してもう一度試してください。')
+      } else {
+        setError(err instanceof Error ? err.message : '意味の生成に失敗しました。もう少し具体的に入力してみてください。')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -87,10 +98,10 @@ export default function InputPage() {
                 <span />
               )}
               <span
-                className={`text-xs tabular-nums ${isTooLong ? 'text-destructive' : 'text-muted-foreground'}`}
+                className={`text-xs tabular-nums transition-colors ${isTooLong ? 'text-destructive font-medium' : isNearLimit ? 'text-amber-500 dark:text-amber-400' : 'text-muted-foreground'}`}
                 aria-label="文字数"
               >
-                {action.length}/1000
+                {isNearLimit || isTooLong ? `残り${1000 - action.length}文字` : `${action.length}/1000`}
               </span>
             </div>
           </motion.div>

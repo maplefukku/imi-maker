@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { ArrowLeft, Clock, Moon, Sun } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export function Header({ showBack = false }: { showBack?: boolean }) {
   const router = useRouter()
@@ -31,17 +32,16 @@ export function Header({ showBack = false }: { showBack?: boolean }) {
           <div />
         )}
         <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full"
-            asChild
+          <Link
+            href="/history"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "rounded-full"
+            )}
           >
-            <Link href="/history">
-              <Clock className="size-4" />
-              <span>履歴</span>
-            </Link>
-          </Button>
+            <Clock className="size-4" />
+            <span>履歴</span>
+          </Link>
           <Button
             variant="ghost"
             size="sm"
