@@ -10,8 +10,18 @@ import { Textarea } from '@/components/ui/textarea'
 
 const ease = [0.25, 0.1, 0.25, 1] as const
 
+const MEANING_TYPES = [
+  { value: 'anything', label: 'なんでもOK' },
+  { value: 'encourage', label: '励まして' },
+  { value: 'insight', label: '気づかせて' },
+  { value: 'action', label: '行動指針をちょうだい' },
+] as const
+
+export type MeaningType = (typeof MEANING_TYPES)[number]['value']
+
 export default function InputPage() {
   const [action, setAction] = useState('')
+  const [meaningType, setMeaningType] = useState<MeaningType>('anything')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -31,7 +41,7 @@ export default function InputPage() {
       const res = await fetch('/api/meaning', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: action.trim() }),
+        body: JSON.stringify({ action: action.trim(), meaningType }),
       })
 
       if (!res.ok) {
@@ -104,6 +114,32 @@ export default function InputPage() {
                 {isNearLimit || isTooLong ? `残り${1000 - action.length}文字` : `${action.length}/1000`}
               </span>
             </div>
+          </motion.div>
+
+          <motion.div
+            className="flex flex-wrap gap-2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease, delay: 0.15 }}
+            role="radiogroup"
+            aria-label="意味の種類"
+          >
+            {MEANING_TYPES.map((type) => (
+              <button
+                key={type.value}
+                type="button"
+                role="radio"
+                aria-checked={meaningType === type.value}
+                onClick={() => setMeaningType(type.value)}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  meaningType === type.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {type.label}
+              </button>
+            ))}
           </motion.div>
 
           {error && (

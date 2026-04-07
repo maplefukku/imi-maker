@@ -4,7 +4,7 @@ import { generateMeaning } from '@/lib/glm'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { action } = body
+    const { action, meaningType } = body
 
     if (!action || typeof action !== 'string' || action.trim() === '') {
       return NextResponse.json(
@@ -20,7 +20,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const meaning = await generateMeaning(action.trim())
+    const validTypes = ['anything', 'encourage', 'insight', 'action'] as const
+    const type = validTypes.includes(meaningType) ? meaningType : 'anything'
+
+    const meaning = await generateMeaning(action.trim(), type)
 
     return NextResponse.json({ meaning })
   } catch (error) {
